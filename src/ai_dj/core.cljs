@@ -10,21 +10,32 @@
   (r/atom {:queue []         ;; [{:id "abc", :title "...", :artist "..."} ...]
            :current nil      ;; current playing track
            :ws nil           ;; WebSocket conn
-           :input ""}))      ;; prompt input
+           :input ""  ;; prompt input
+           :yt-ids {}    ;; youtube track ids
+           }))
 
 ;; ------------------------------
 ;; WebSocket
+
+(defn send! [msg]
+  (when-let [ws (:ws @app-state)]
+    (.send ws (js/JSON.stringify (clj->js msg)))))
 
 (defn connect! []
   (let [ws (js/WebSocket. "ws://localhost:3000/ws")]
     (set! (.-onmessage ws)
           (fn [e]
-            (let [msg (js/JSON.parse (.-data e))]
+            (let [msg (js->clj (js/JSON.parse (.-data e)) :keywordize-keys true)]
               (js/console.log "msg:" msg)
-              (case (.-type msg)
-                "queue"     (swap! app-state assoc :queue (js->clj (.-queue msg) :keywordize-keys true))
-                "play"      (swap! app-state assoc :current (.-current msg))
-                "comment"   (js/console.log "Commentary:" (.-text msg))
+              (case (:type msg)
+                "queue"     (let [queue (:queue msg)]
+                              (swap! app-state assoc :queue queue)
+                              (doseq [t (take 2 queue)]
+                                (send! {:type "track"
+                                        :id (:id t)
+                                        :query (str (:title t) " by " (:artist t))})))
+                "yt-id"      (swap! app-state update :yt-ids assoc (:id msg) (:track-id msg))
+                "comment"   (js/console.log "Commentary:" (:text msg))
                 (js/console.warn "Unhandled msg:" msg)))))
 
     (set! (.-onopen ws)
@@ -32,58 +43,63 @@
 
     (swap! app-state assoc :ws ws)))
 
-(defn send! [msg]
-  (when-let [ws (:ws @app-state)]
-    (.send ws (js/JSON.stringify (clj->js msg)))))
+(defn send-prompt! []
+  (when-let [prompt (:input @app-state)]
+    (send! {:type "prompt" :text prompt})))
 
 ;; ------------------------------
 ;; Components
 
 (defn prompt-box []
-  [:div.prompt-bar
-   [:input {:type "text"
-            :placeholder "Try: upbeat latino 80s"
-            :value (:input @app-state)
-            :class "border p-2 flex-1"
-            :on-change #(swap! app-state assoc :input (.. % -target -value))}]
-   [:button {:on-click #(do
-                          (send! {:type "prompt"
-                                  :text (:input @app-state)})
-                          (swap! app-state assoc :input ""))
-             :class "bg-blue-500 text-white px-4 py-2 rounded"}
-    "Play"]])
+  [:form {:on-submit (fn [e]
+                       (.preventDefault e)
+                       (send-prompt!))}
+   [:div.prompt-bar
+    [:input {:type "text"
+             :placeholder "Try: upbeat latino 80s"
+             :value (:input @app-state)
+             :on-change #(swap! app-state assoc :input (.. % -target -value))}]
+    [:button "Play"]]])
 
 (defn player []
   [:div#player])
 
-(defn player-v1 []
-  (let [{:keys [current queue]} @app-state]
-    (when-let [current (and current (seq queue) (nth queue current))]
-      [:div
-       [:h2.text-xl (:title current)]
-       [:iframe {:width "560"
-                 :height "315"
-                 :src (str "https://www.youtube.com/embed/" (:id current) "?autoplay=1")
-                 :frameBorder "0"
-                 :allow "autoplay; encrypted-media"
-                 :allowFullScreen true}]])))
+;; (defn player-v1 []
+;;   (let [{:keys [current queue]} @app-state]
+;;     (when-let [current (and current (seq queue) (nth queue current))]
+;;       [:div
+;;        [:h2.text-xl (:title current)]
+;;        [:iframe {:width "560"
+;;                  :height "315"
+;;                  :src (str "https://www.youtube.com/embed/" (:id current) "?autoplay=1")
+;;                  :frameBorder "0"
+;;                  :allow "autoplay; encrypted-media"
+;;                  :allowFullScreen true}]])))
+
+(defn playing-track []
+  (if-let [track (some-> @app-state :queue first)]
+    [:div (:title track) " - " (:artist track)]
+    [:div]))
 
 (defn queue-list []
-  (let [queue (:queue @app-state)]
+  (let [queue (rest (:queue @app-state))]
     (when (seq queue)
       [:div.track-info
        [:h2 "Up Next:"]
-       (for [{:keys [id title]} queue]
-         ^{:key id} [:p (str "• " title)])])))
+       (for [{:keys [id title artist]} queue]
+         ^{:key id} [:p "• " title " - " artist])])))
 
 (defn current-track []
-  (js/console.log "current-track")
-  (let [{:keys [current queue]} @app-state]
-    (when current
-      (some-> queue (nth current) :id))))
+  (when-let [current (some-> @app-state :queue first)]
+    (some-> @app-state :yt-ids (get (:id current)))))
 
 ;; ---------- player ---------------
 (defonce yt-player (r/atom nil))
+
+(defn play-next [player]
+  (when-let [t @(r/track current-track)]
+    (js/console.log "track changed: " t)
+    (ocall player "loadVideoById" t)))
 
 (defn on-player-state-change [event]
   (let [state (.-data event)]
@@ -95,23 +111,24 @@
         (ocall (.-target event) "playVideo"))
 
       0 ;; js/YT.PlayerState.ENDED
-      (js/console.log "▶️ Track ended, trigger next or commentary")
+      (do
+        (js/console.log "▶️ Track ended, trigger next or commentary")
+        (let [next (->> (swap! app-state update :queue rest) (drop 1) first)]
+          (send! {:type "track"
+                  :id (:id next)
+                  :query (str (:title next) " by " (:artist next))})))
 
       1 ;; js/YT.PlayerState.PLAYING
       (js/console.log "🎵 Track started")
 
       (js/console.log "other state:" state))))
 
-(defn play-next [player]
-  (when-let [t @(r/track current-track)]
-    (js/console.log "track changed: " t)
-    (ocall player "loadVideoById" t)))
-
 (defn on-player-ready [event]
   (js/console.log "Player ready")
   (r/track! play-next (.-target event)))
 
 (defn on-yt-ready []
+  (js/console.log "on-yt-ready")
   (reset! yt-player
           (js/YT.Player.
            "player"  ;; ID of the div
@@ -131,8 +148,9 @@
 
 (defn app []
   [:div.app-container
-   [:h1.text-2xl.font-bold "🎧 AI DJ"]
+   [:h1 "🎧 AI DJ"]
    [prompt-box]
+   [playing-track]
    [player]
    [queue-list]])
 
@@ -144,10 +162,14 @@
 
 (defn ^:dev/after-load start []
   (js/console.log "start...")
-  (domc/render @root [app]))
+  (domc/render @root [app])
+  (if (some? @yt-player)
+    (do
+      (.destroy @yt-player)
+      (on-yt-ready))
+    (init-yt-api)))
 
 (defn ^:export init []
   (js/console.log "init...")
   (connect!)
-  (start)
-  (init-yt-api))
+  (start))

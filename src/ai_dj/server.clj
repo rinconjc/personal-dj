@@ -7,10 +7,11 @@
 
 (defn routes []
   [["/ws" {:get ws/handle-ws}]
-   ["/prompt" {:post (fn [req]
-                       (let [{:keys [text]} (-> req :body slurp (json/parse-string true))]
-                         (ws/handle-prompt! text)
-                         {:status 200 :body "OK"}))}]])
+   ;; ["/prompt" {:post (fn [req]
+   ;;                     (let [{:keys [text]} (-> req :body slurp (json/parse-string true))]
+   ;;                       (ws/serve-queue! text)
+   ;;                       {:status 200 :body "OK"}))}]
+   ])
 
 (def app
   (ring/ring-handler

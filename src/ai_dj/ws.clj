@@ -1,6 +1,8 @@
 (ns ai-dj.ws
   (:require
    [ai-dj.ai :as ai]
+   [ai-dj.spotify :as spotify]
+   [ai-dj.yt :as yt]
    [cheshire.core :as json]
    [clojure.tools.logging :as log]
    [org.httpkit.server :as http]))
@@ -18,27 +20,42 @@
     (let [cmt (ai/make-commentary tk)]
       (broadcast! {:type "commentary" :songId (:id tk) :text cmt}))))
 
-(defn handle-prompt! [text]
-  (let [tracks (ai/prompt→tracks text)]
-    (reset! queue tracks)
-    (reset! current 0)
-    (broadcast! {:type "queue" :queue @queue})
-    (future (Thread/sleep 5000) (send-commentary))))
+(defn serve-queue! [ch prompt]
+  (let [tracks (spotify/search-tracks prompt)]
+    (http/send! ch (json/generate-string {:type "queue" :queue tracks}))
+    ;; (future (Thread/sleep 5000) (send-commentary))
+    ))
+
+(defn serve-track! [ch id query]
+  (let [tracks (yt/search-videos query 1)]
+    (http/send! ch (json/generate-string {:type "yt-id" :id id :track-id (-> tracks first :id)}))))
 
 (defn handle-ws [req]
-  (http/with-channel req channel
-    (swap! clients conj channel)
-    (http/on-close channel #(swap! clients disj channel))
-    (http/send! channel (json/generate-string {:type "queue" :queue @queue}))
-    (http/send! channel (json/generate-string {:type "play" :current @current}))
-    (http/on-receive channel
-                     (fn [data & more]
-                       (log/info "req:" data more)
-                       (let [{:keys [type text]} (json/parse-string data true)]
-                         (case type
-                           "trackended" (do (swap! current inc) (send-commentary)
-                                            (broadcast! {:type "next" :current @current}))
-                           "prompt" (do
-                                      (log/info "handle prompt")
-                                      (handle-prompt! text))
-                           nil))))))
+  (http/as-channel
+   req
+   {:on-open
+    (fn [ch]
+      (log/info "channel open")
+      (swap! clients conj ch)
+      (http/send! ch (json/generate-string {:type "queue" :queue @queue})))
+    :on-close
+    (fn [ch status]
+      (log/info "channel closed:" status)
+      (swap! clients disj ch))
+    :on-receive
+    (fn [ch data]
+      (log/info "req:" data)
+      (let [{:keys [type] :as msg} (json/parse-string data true)]
+        (case type
+          "trackended"
+          (do (swap! current inc) (send-commentary)
+              (broadcast! {:type "next" :current @current}))
+          "prompt"
+          (do
+            (log/info "handle prompt")
+            (serve-queue! ch (:text msg)))
+          "track"
+          (do
+            (log/info "find yt track")
+            (serve-track! ch (:id msg) (:query msg)))
+          (log/info "unhandled message type:" type))))}))

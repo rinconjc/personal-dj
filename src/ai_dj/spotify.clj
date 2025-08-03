@@ -1,10 +1,9 @@
 (ns ai-dj.spotify
   (:require
-   [cheshire.core :as json]
-   [clojure.string :as str]
+   [clojure.tools.logging :as log]
    [hato.client :as http])
   (:import
-   (java.time LocalDateTime Duration)))
+   (java.time Duration LocalDateTime)))
 
 (defonce client-id (System/getenv "SPOTIFY_CLIENT_ID"))
 (defonce client-secret (System/getenv "SPOTIFY_CLIENT_SECRET"))
@@ -27,21 +26,23 @@
 (defn ensure-token []
   (when (or (nil? @token) (.isBefore (:expires_in @token) (LocalDateTime/now)))
     (reset! token (get-access-token)))
-  @token)
+  (:access_token @token))
 
 (defn search-tracks [prompt]
-  (ensure-token)
   (let [url "https://api.spotify.com/v1/search"
-        params {:headers {"Authorization" (str "Bearer " @token)}
+        params {:headers {"Authorization" (str "Bearer " (ensure-token))}
                 :query-params {:q prompt
                                :type "track"
-                               :limit 5}}
+                               :limit 10}
+                :as :json}
         response (http/get url params)
         items (get-in response [:body :tracks :items])]
     (mapv (fn [track]
-            {:title (:name track)
+            {:id (:id track)
+             :title (:name track)
              :artist (-> track :artists first :name)
              :album (get-in track [:album :name])
              :preview-url (:preview_url track)
              :spotify-url (get-in track [:external_urls :spotify])})
           items)))
+;; (search-tracks "at work")
