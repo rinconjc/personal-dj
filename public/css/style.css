@@ -1,0 +1,95 @@
+/* General Reset */
+body,
+html {
+  margin: 0;
+  padding: 0;
+  font-family: "Segoe UI", Roboto, sans-serif;
+  background-color: #111;
+  color: #f0f0f0;
+}
+
+/* Container */
+.app-container {
+  max-width: 800px;
+  margin: auto;
+  padding: 2rem;
+}
+
+/* Heading */
+h1 {
+  font-size: 2.2rem;
+  color: #00ffc3;
+  margin-bottom: 1rem;
+}
+
+/* Input + Button */
+.prompt-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.prompt-bar input[type="text"] {
+  flex: 1;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  background-color: #222;
+  color: #fff;
+}
+
+.prompt-bar button {
+  background-color: #00ffc3;
+  border: none;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  color: #111;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.prompt-bar button:hover {
+  background-color: #00e6b8;
+}
+
+/* Track Info */
+.track-info {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background-color: #1c1c1c;
+  border-radius: 8px;
+}
+
+.track-info h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.4rem;
+}
+
+.track-info p {
+  margin: 0;
+  font-size: 1rem;
+  color: #bbb;
+}
+
+/* YouTube Player */
+#player {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-top: 1rem;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 0 20px rgba(0, 255, 195, 0.2);
+}
+
+/* Commentary */
+.commentary-box {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #1b1b1b;
+  border-left: 4px solid #00ffc3;
+  font-style: italic;
+  color: #ccc;
+  border-radius: 4px;
+}

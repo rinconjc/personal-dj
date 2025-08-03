@@ -1,0 +1,46 @@
+(ns ai-dj.ai
+  (:require
+   [ai-dj.yt :as yt]
+   [cheshire.core :as json]
+   [clojure.tools.logging :as log]
+   [hato.client :as http]))
+
+(def openai-key (System/getenv "OPENAI_API_KEY"))
+
+(def system-prompt {:role "system" :content "You respond with exact answers to any queries"})
+
+(defn create-chat-completion [req]
+  (let [resp (http/post "https://api.openai.com/v1/chat/completions"
+                        {:headers {"Authorization" (str "Bearer " openai-key)}
+                         :form-params (log/spy req)
+                         :content-type :json
+                         :as :json})
+        body (log/spy (:body resp))
+        result (get-in body [:choices 0 :message :content])]
+    result))
+
+(defn interpret-prompt [text]
+  (create-chat-completion
+   {:model "gpt-4o"
+    :messages [system-prompt
+               {:role "user"
+                :content (str "Turn this into a YouTube song search query: \"" text "\"")}]
+    :temperature 1.0}))
+
+(defn prompt→tracks [text]
+  (let [query (interpret-prompt text)
+        tracks (yt/search-videos query 5)]
+    tracks))
+
+(defn make-commentary [track]
+  (let [prompt (str "Write a reflective 2‑sentence DJ insight for song \"" (:title track) "\" by " (:artist track))]
+    (create-chat-completion
+     {:model "gpt-4"
+      :messages [system-prompt {:role "user" :content prompt}]
+      :temperature 0.7})))
+
+;; (try
+;;   ;; (System/setProperty "jdk.httpclient.HttpClient.log" "")
+;;   (prompt→tracks "nostalgic")
+;;   (catch Exception e
+;;     (println e)))
