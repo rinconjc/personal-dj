@@ -20,15 +20,18 @@
     (let [cmt (ai/make-commentary tk)]
       (broadcast! {:type "commentary" :songId (:id tk) :text cmt}))))
 
-(defn serve-queue! [ch prompt]
-  (let [tracks (spotify/search-tracks prompt)]
-    (http/send! ch (json/generate-string {:type "queue" :queue tracks}))
-    ;; (future (Thread/sleep 5000) (send-commentary))
-    ))
-
 (defn serve-track! [ch id query]
   (let [tracks (yt/search-videos query 1)]
     (http/send! ch (json/generate-string {:type "yt-id" :id id :track-id (-> tracks first :id)}))))
+
+(defn send-queue! [ch prompt]
+  (let [tracks (spotify/search-tracks prompt)
+        first (first tracks)]
+    (http/send! ch (json/generate-string {:type "queue" :queue tracks}))
+    (when first
+      (serve-track! ch  (:id first) (str (:title first) " by " (:artist first))))
+    ;; (future (Thread/sleep 5000) (send-commentary))
+    ))
 
 (defn handle-ws [req]
   (http/as-channel
@@ -53,7 +56,7 @@
           "prompt"
           (do
             (log/info "handle prompt")
-            (serve-queue! ch (:text msg)))
+            (send-queue! ch (:text msg)))
           "track"
           (do
             (log/info "find yt track")

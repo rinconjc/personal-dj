@@ -10,6 +10,7 @@
         opts {:query-params {:part "snippet"
                              :q query
                              :type "video"
+                             :videoEmbeddable "true"
                              :maxResults max-results}
               :as :json
               :headers {"X-goog-api-key" api-key}}

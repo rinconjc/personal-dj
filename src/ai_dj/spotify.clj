@@ -33,7 +33,7 @@
         params {:headers {"Authorization" (str "Bearer " (ensure-token))}
                 :query-params {:q prompt
                                :type "track"
-                               :limit 10}
+                               :limit 20}
                 :as :json}
         response (http/get url params)
         items (get-in response [:body :tracks :items])]

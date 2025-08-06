@@ -29,11 +29,7 @@
               (js/console.log "msg:" msg)
               (case (:type msg)
                 "queue"     (let [queue (:queue msg)]
-                              (swap! app-state assoc :queue queue)
-                              (doseq [t (take 2 queue)]
-                                (send! {:type "track"
-                                        :id (:id t)
-                                        :query (str (:title t) " by " (:artist t))})))
+                              (swap! app-state assoc :queue queue))
                 "yt-id"      (swap! app-state update :yt-ids assoc (:id msg) (:track-id msg))
                 "comment"   (js/console.log "Commentary:" (:text msg))
                 (js/console.warn "Unhandled msg:" msg)))))
@@ -110,16 +106,22 @@
         (js/console.log "starting...")
         (ocall (.-target event) "playVideo"))
 
-      0 ;; js/YT.PlayerState.ENDED
+      0 ;; js/YT.PlayerState.ENDED (let [[x & xs] (list 1 2 3)] xs) (seq [])
       (do
         (js/console.log "▶️ Track ended, trigger next or commentary")
-        (let [next (->> (swap! app-state update :queue rest) (drop 1) first)]
+        (loop [[next & more] (swap! app-state update :queue rest)]
+          (when (and (seq more) (not (get (:yt-ids @app-state) (:id next))))
+            (js/console.log "skipping missing track...")
+            (recur more))))
+
+      1 ;; js/YT.PlayerState.PLAYING
+      (do
+        (js/console.log "🎵 Track started")
+        (let [{:keys [yt-ids queue]} @app-state
+              next (some #(when-not (yt-ids (:id %)) %) queue)]
           (send! {:type "track"
                   :id (:id next)
                   :query (str (:title next) " by " (:artist next))})))
-
-      1 ;; js/YT.PlayerState.PLAYING
-      (js/console.log "🎵 Track started")
 
       (js/console.log "other state:" state))))
 
@@ -163,13 +165,12 @@
 (defn ^:dev/after-load start []
   (js/console.log "start...")
   (domc/render @root [app])
-  (if (some? @yt-player)
-    (do
-      (.destroy @yt-player)
-      (on-yt-ready))
-    (init-yt-api)))
+  (when (some? @yt-player)
+    (.destroy @yt-player)
+    (on-yt-ready)))
 
 (defn ^:export init []
   (js/console.log "init...")
   (connect!)
-  (start))
+  (start)
+  (init-yt-api))

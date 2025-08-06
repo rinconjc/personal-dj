@@ -1,28 +1,27 @@
 (ns ai-dj.server
-  (:require [reitit.ring :as ring]
-            [ai-dj.ws :as ws]
-            [org.httpkit.server :as http]
-            [cheshire.core :as json])
+  (:require
+   [ai-dj.ws :as ws]
+   [clojure.tools.logging :as log]
+   [org.httpkit.server :as http]
+   [reitit.ring :as ring])
   (:gen-class))
 
 (defn routes []
   [["/ws" {:get ws/handle-ws}]
-   ;; ["/prompt" {:post (fn [req]
-   ;;                     (let [{:keys [text]} (-> req :body slurp (json/parse-string true))]
-   ;;                       (ws/serve-queue! text)
-   ;;                       {:status 200 :body "OK"}))}]
-   ])
+   ["/*" (ring/create-resource-handler)]])
 
 (def app
   (ring/ring-handler
-   (ring/router (routes))
-   (constantly {:status 404 :body "Not found"})))
+   (ring/router (routes) {:conflicts (constantly nil)})
+   (ring/create-default-handler)))
 
 (defonce server (atom nil))
 
+(def port (Integer/parseInt (or (not-empty (System/getenv "PORT")) "3000")))
+
 (defn start []
-  (reset! server (http/run-server #'app {:port 3000}))
-  (println "AI DJ backend running on http://localhost:3000"))
+  (reset! server (http/run-server #'app {:port port}))
+  (log/info "AI DJ backend running on http://localhost:" port))
 
 (defn stop []
   (when @server
@@ -30,7 +29,6 @@
     (reset! server nil)))
 
 (defn -main [& args]
-  (println "starting backend..." args)
   (start))
 
 ;; (-main)
