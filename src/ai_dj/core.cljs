@@ -89,6 +89,9 @@
   (when-let [current (some-> @app-state :queue first)]
     (some-> @app-state :yt-ids (get (:id current)))))
 
+(defn next-track! []
+  (swap! app-state update :queue rest))
+
 ;; ---------- player ---------------
 (defonce yt-player (r/atom nil))
 
@@ -109,10 +112,13 @@
       0 ;; js/YT.PlayerState.ENDED (let [[x & xs] (list 1 2 3)] xs) (seq [])
       (do
         (js/console.log "▶️ Track ended, trigger next or commentary")
-        (loop [[next & more] (swap! app-state update :queue rest)]
-          (when (and (seq more) (not (get (:yt-ids @app-state) (:id next))))
-            (js/console.log "skipping missing track...")
-            (recur more))))
+        (play-next @yt-player)
+        (next-track!)
+        ;; (loop [[next & more] (swap! app-state update :queue rest)]
+        ;;   (when (and (seq more) (not (get (:yt-ids @app-state) (:id next))))
+        ;;     (js/console.log "skipping missing track...")
+        ;;     (recur more)))
+        )
 
       1 ;; js/YT.PlayerState.PLAYING
       (do
@@ -153,8 +159,18 @@
    [:h1 "🎧 AI DJ"]
    [prompt-box]
    [playing-track]
+   [:button {:on-click #(do (play-next @yt-player) (next-track!))} "Next Track"]
    [player]
    [queue-list]])
+
+;; ------------------------------
+;; Keybindings
+
+(defn handle-keydown [e]
+  (when (= (.-key e) "n")
+    (js/console.log "next track via keyboard")
+    (play-next @yt-player)
+    (next-track!)))
 
 ;; ------------------------------
 ;; Entry
@@ -167,7 +183,8 @@
   (domc/render @root [app])
   (when (some? @yt-player)
     (.destroy @yt-player)
-    (on-yt-ready)))
+    (on-yt-ready))
+  (.addEventListener js/document "keydown" handle-keydown))
 
 (defn ^:export init []
   (js/console.log "init...")
