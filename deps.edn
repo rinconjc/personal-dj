@@ -17,4 +17,5 @@
  :aliases {:build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.10"}}
                    :ns-default build
                    :main-opts ["-m" "ai-dj.server"]
-                   :jvm-opts ["-Dclojure.main.report=stderr"]}}}
+                   :jvm-opts ["-Dclojure.main.report=stderr"]}
+           :main {:main-opts ["-m" "ai-dj.server"]}}}
