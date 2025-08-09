@@ -12,10 +12,10 @@
 (defn create-chat-completion [req]
   (let [resp (http/post "https://api.openai.com/v1/chat/completions"
                         {:headers {"Authorization" (str "Bearer " openai-key)}
-                         :form-params (log/spy req)
+                         :form-params req
                          :content-type :json
                          :as :json})
-        body (log/spy (:body resp))
+        body (:body resp)
         result (get-in body [:choices 0 :message :content])]
     result))
 
@@ -45,8 +45,8 @@
                 :messages [{:role "system"
                             :content (str "You're the best DJ of the universe. "
                                           "You understand what songs users want to listen to and find the best playlist. "
-                                          "The playlist should include at least 5 songs, "
-                                          "and if possible a link to the youtube video. "
+                                          "The playlist should include at least 15 songs. "
+                                          ;; "and if possible a link to the youtube video. "
                                           "Match the user's language."
                                           "Finally, you MUST respond in JSON, using the following schema: \n "
                                           "{\n"
@@ -54,8 +54,8 @@
                                           "  \"songs\": [\n"
                                           "    {\n"
                                           "      \"title\": \"Song Title (string)\",\n"
-                                          "      \"artist\": \"Artist Name (string)\",\n"
-                                          "      \"youtube_id\": \"Optional YouTube video id (string, can be null)\"\n"
+                                          "      \"artist\": \"Artist Name (string)\"\n"
+                                          ;; "      \"youtube_id\": \"Optional YouTube video id (string, can be null)\"\n"
                                           "    },\n"
                                           "    ...\n"
                                           "  ]\n"
