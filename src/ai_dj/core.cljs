@@ -31,7 +31,7 @@
     (set! (.-onmessage ws)
           (fn [e]
             (let [msg (js->clj (js/JSON.parse (.-data e)) :keywordize-keys true)]
-              (js/console.log "msg:" msg)
+              ;; (js/console.log "msg:" msg)
               (case (:type msg)
                 "playlist" (let [{:keys [commentary songs]} msg]
                              (swap! app-state assoc
@@ -152,29 +152,9 @@
   ;; (r/track! play-next)
   )
 
-(defn yt-play! []
-  (when-let [p @yt-player]
-    (.playVideo p)))
-
-(defn yt-pause! []
-  (when-let [p @yt-player]
-    (.pauseVideo p)))
-
 (defn init-yt-api []
   (set! js/onYouTubeIframeAPIReady on-yt-ready))
 
-(defn setup-media-keys! []
-  (when-let  [ms (.-mediaSession js/navigator)]
-    (js/console.log "setup media session!")
-    (doto ms
-      (.setActionHandler "play" yt-play!)
-      (.setActionHandler "pause" #(do
-                                    (js/console.log "pause")
-                                    (yt-pause!)))
-      (.setActionHandler "nexttrack" #(do
-                                        (js/console.log "nextrack:")
-                                        (next-track!)))
-      (.setActionHandler "seekforward" next-track!))))
 ;; ------------------------------
 ;; Main UI
 
@@ -209,8 +189,7 @@
   (when (some? @yt-player)
     (.destroy @yt-player)
     (on-yt-ready))
-  (.addEventListener js/document "keydown" handle-keydown)
-  (setup-media-keys!))
+  (.addEventListener js/document "keydown" handle-keydown))
 
 (defn ^:export init []
   (js/console.log "init...")

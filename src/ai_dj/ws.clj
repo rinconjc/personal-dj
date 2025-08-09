@@ -35,11 +35,10 @@
   (let [playlist (ai/create-playlist prompt)
         playlist (update playlist
                          :songs (fn [songs]
-                                  (map #(-> % (assoc :id (hash %))
-                                            (dissoc :youtube_id)) songs)))
+                                  (map #(-> % (assoc :id (hash %))) songs)))
         first (first (:songs playlist))]
     (http/send! ch (json/generate-string (assoc playlist :type "playlist")))
-    (when first
+    (when (and first (not (:youtube_id first)))
       (serve-track! ch  (:id first) (str (:title first) " by " (:artist first))))))
 
 (defn handle-ws [req]

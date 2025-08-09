@@ -15,6 +15,7 @@
 
 (defn routes []
   [["/ws" {:get ws/handle-ws}]
+   ;; ["/api" {:get "healthy"}]
    ["/*" (ring/create-file-handler)]])
 
 (def app
