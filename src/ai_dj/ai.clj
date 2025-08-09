@@ -6,6 +6,7 @@
    [hato.client :as http]))
 
 (def openai-key (System/getenv "OPENAI_API_KEY"))
+(def default-model (or (System/getenv "OPENAI_MODEL") "gpt-5-mini"))
 
 (def system-prompt {:role "system" :content "You respond with exact answers to any queries"})
 
@@ -21,7 +22,7 @@
 
 (defn interpret-prompt [text]
   (create-chat-completion
-   {:model "gpt-4o"
+   {:model default-model
     :messages [system-prompt
                {:role "user"
                 :content (str "Turn this into a YouTube song search query: \"" text "\"")}]
@@ -35,18 +36,18 @@
 (defn make-commentary [track]
   (let [prompt (str "Write a reflective 2‑sentence DJ insight for song \"" (:title track) "\" by " (:artist track))]
     (create-chat-completion
-     {:model "gpt-4"
+     {:model default-model
       :messages [system-prompt {:role "user" :content prompt}]
       :temperature 0.7})))
 
 (defn create-playlist [theme]
   (let [resp  (create-chat-completion
-               {:model "gpt-4"
+               {:model default-model
                 :messages [{:role "system"
                             :content (str "You're the best DJ of the universe. "
                                           "You understand what songs users want to listen to and find the best playlist. "
-                                          "The playlist should include at least 15 songs. "
-                                          "and if possible a link to the youtube video. "
+                                          "The playlist should include at least 10 songs, "
+                                          "and they should all be available in youtube. "
                                           "Match the user's language."
                                           "Finally, you MUST respond in JSON, using the following schema: \n "
                                           "{\n"
@@ -55,14 +56,14 @@
                                           "    {\n"
                                           "      \"title\": \"Song Title (string)\",\n"
                                           "      \"artist\": \"Artist Name (string)\"\n"
-                                          "      \"youtube_id\": \"Optional YouTube video id (string, can be null)\"\n"
+                                          "      \"youtube_id\": \"YouTube video id (string)\"\n"
                                           "    },\n"
                                           "    ...\n"
                                           "  ]\n"
                                           "}\n")}
                            {:role "user"
                             :content theme}]
-                :temperature 0.7})]
+                :temperature 1})]
     (json/parse-string resp true)))
 
 ;; (try
