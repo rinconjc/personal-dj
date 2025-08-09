@@ -29,9 +29,18 @@
         first (first tracks)]
     (http/send! ch (json/generate-string {:type "queue" :queue tracks}))
     (when first
-      (serve-track! ch  (:id first) (str (:title first) " by " (:artist first))))
-    ;; (future (Thread/sleep 5000) (send-commentary))
-    ))
+      (serve-track! ch  (:id first) (str (:title first) " by " (:artist first))))))
+
+(defn send-playlist! [ch prompt]
+  (let [playlist (ai/create-playlist prompt)
+        playlist (update playlist
+                         :songs (fn [songs]
+                                  (map #(-> % (assoc :id (hash %))
+                                            (dissoc :youtube_id)) songs)))
+        first (first (:songs playlist))]
+    (http/send! ch (json/generate-string (assoc playlist :type "playlist")))
+    (when first
+      (serve-track! ch  (:id first) (str (:title first) " by " (:artist first))))))
 
 (defn handle-ws [req]
   (http/as-channel
@@ -50,13 +59,17 @@
       (log/info "req:" data)
       (let [{:keys [type] :as msg} (json/parse-string data true)]
         (case type
+          "playlist"
+          (do
+            (log/info msg)
+            (send-playlist! ch (:text msg)))
           "trackended"
           (do (swap! current inc) (send-commentary)
               (broadcast! {:type "next" :current @current}))
           "prompt"
           (do
             (log/info "handle prompt")
-            (send-queue! ch (:text msg)))
+            (send-playlist! ch (:text msg)))
           "track"
           (do
             (log/info "find yt track")

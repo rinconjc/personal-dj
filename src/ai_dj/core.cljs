@@ -33,6 +33,11 @@
             (let [msg (js->clj (js/JSON.parse (.-data e)) :keywordize-keys true)]
               (js/console.log "msg:" msg)
               (case (:type msg)
+                "playlist" (let [{:keys [commentary songs]} msg]
+                             (swap! app-state assoc
+                                    :queue songs
+                                    :commentary commentary
+                                    :loading false))
                 "queue"     (let [queue (:queue msg)]
                               (swap! app-state assoc :queue queue))
                 "yt-id"      (swap! app-state update :yt-ids assoc (:id msg) (:track-id msg))
@@ -46,6 +51,7 @@
 
 (defn send-prompt! []
   (when-let [prompt (:input @app-state)]
+    (swap! app-state assoc :loading true)
     (send! {:type "prompt" :text prompt})))
 
 (defn next-track! []
@@ -62,7 +68,13 @@
              :placeholder "Try: upbeat latino 80s"
              :value (:input @app-state)
              :on-change #(swap! app-state assoc :input (.. % -target -value))}]
+    (when (:loading @app-state)
+      [:div.spinner])
     [:button "Play"]]])
+
+(defn quote []
+  (when-let [commentary (:commentary @app-state)]
+    [:h2.commentary-box commentary]))
 
 (defn player []
   [:div#player])
@@ -86,7 +98,8 @@
 
 (defn current-track []
   (when-let [current (some-> @app-state :queue first)]
-    (some-> @app-state :yt-ids (get (:id current)))))
+    (or (:youtube_id current)
+        (some-> @app-state :yt-ids (get (:id current))))))
 
 ;; ---------- player ---------------
 (defonce yt-player (r/atom nil))
@@ -108,22 +121,17 @@
       0 ;; js/YT.PlayerState.ENDED (let [[x & xs] (list 1 2 3)] xs) (seq [])
       (do
         (js/console.log "▶️ Track ended, trigger next or commentary")
-        ;; (play-next @yt-player)
-        (next-track!)
-        ;; (loop [[next & more] (swap! app-state update :queue rest)]
-        ;;   (when (and (seq more) (not (get (:yt-ids @app-state) (:id next))))
-        ;;     (js/console.log "skipping missing track...")
-        ;;     (recur more)))
-        )
+        (next-track!))
 
       1 ;; js/YT.PlayerState.PLAYING
       (do
         (js/console.log "🎵 Track started")
         (let [{:keys [yt-ids queue]} @app-state
-              next (some #(when-not (yt-ids (:id %)) %) queue)]
-          (send! {:type "track"
-                  :id (:id next)
-                  :query (str (:title next) " by " (:artist next))})))
+              next (some #(when-not (or (:youtube_id %) (yt-ids (:id %))) %) queue)]
+          (when next
+            (send! {:type "track"
+                    :id (:id next)
+                    :query (str (:title next) " by " (:artist next))}))))
 
       (js/console.log "other state:" state))))
 
@@ -154,6 +162,7 @@
   [:div.app-container
    [:h1 "🎧 AI DJ"]
    [prompt-box]
+   [quote]
    [playing-track]
    [player]
    [queue-list]])
