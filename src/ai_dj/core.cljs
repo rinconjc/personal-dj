@@ -3,6 +3,7 @@
             [reagent.dom.client :as domc]
             [oops.core :refer [ocall]]))
 
+(goog-define BACKEND_URL "ws://localhost:3000/ws")
 ;; ------------------------------
 ;; State
 
@@ -22,7 +23,11 @@
     (.send ws (js/JSON.stringify (clj->js msg)))))
 
 (defn connect! []
-  (let [ws (js/WebSocket. "ws://localhost:3000/ws")]
+  (let [ws (js/WebSocket. (or BACKEND_URL
+                              (str (if (= js/location.protocol "https:") "wss:" "ws:")
+                                   js/location.hostname
+                                   js/location.port
+                                   "/ws")))]
     (set! (.-onmessage ws)
           (fn [e]
             (let [msg (js->clj (js/JSON.parse (.-data e)) :keywordize-keys true)]
@@ -43,6 +48,8 @@
   (when-let [prompt (:input @app-state)]
     (send! {:type "prompt" :text prompt})))
 
+(defn next-track! []
+  (swap! app-state update :queue rest))
 ;; ------------------------------
 ;; Components
 
@@ -60,17 +67,9 @@
 (defn player []
   [:div#player])
 
-;; (defn player-v1 []
-;;   (let [{:keys [current queue]} @app-state]
-;;     (when-let [current (and current (seq queue) (nth queue current))]
-;;       [:div
-;;        [:h2.text-xl (:title current)]
-;;        [:iframe {:width "560"
-;;                  :height "315"
-;;                  :src (str "https://www.youtube.com/embed/" (:id current) "?autoplay=1")
-;;                  :frameBorder "0"
-;;                  :allow "autoplay; encrypted-media"
-;;                  :allowFullScreen true}]])))
+(defn player-controls []
+  [:div.controls
+   [:button {:on-click next-track!} "⏭ Skip (n)"]])
 
 (defn playing-track []
   (if-let [track (some-> @app-state :queue first)]
@@ -88,9 +87,6 @@
 (defn current-track []
   (when-let [current (some-> @app-state :queue first)]
     (some-> @app-state :yt-ids (get (:id current)))))
-
-(defn next-track! []
-  (swap! app-state update :queue rest))
 
 ;; ---------- player ---------------
 (defonce yt-player (r/atom nil))
@@ -112,7 +108,7 @@
       0 ;; js/YT.PlayerState.ENDED (let [[x & xs] (list 1 2 3)] xs) (seq [])
       (do
         (js/console.log "▶️ Track ended, trigger next or commentary")
-        (play-next @yt-player)
+        ;; (play-next @yt-player)
         (next-track!)
         ;; (loop [[next & more] (swap! app-state update :queue rest)]
         ;;   (when (and (seq more) (not (get (:yt-ids @app-state) (:id next))))
@@ -159,7 +155,6 @@
    [:h1 "🎧 AI DJ"]
    [prompt-box]
    [playing-track]
-   [:button {:on-click #(do (play-next @yt-player) (next-track!))} "Next Track"]
    [player]
    [queue-list]])
 
@@ -167,10 +162,11 @@
 ;; Keybindings
 
 (defn handle-keydown [e]
-  (when (= (.-key e) "n")
-    (js/console.log "next track via keyboard")
-    (play-next @yt-player)
-    (next-track!)))
+  (let [tag (.. e -target -tagName)]
+    (when (and (= (.-key e) "n") (not (#{"INPUT" "TEXTAREA"} tag)))
+      (js/console.log "next track via keyboard")
+      (play-next @yt-player)
+      (next-track!))))
 
 ;; ------------------------------
 ;; Entry

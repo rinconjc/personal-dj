@@ -39,8 +39,32 @@
       :messages [system-prompt {:role "user" :content prompt}]
       :temperature 0.7})))
 
+(defn create-playlist [theme]
+  (create-chat-completion {:model "gpt-4"
+                           :messages [{:role "system"
+                                       :content (str "You're the best DJ of the universe. "
+                                                     "You understand what songs users want to listen to and find the best playlist. "
+                                                     "The playlist should include at least 10 songs, "
+                                                     "and if possible a link to the youtube video. "
+                                                     "Finally, you MUST respond in JSON, using the following schema: \n "
+                                                     "{\n"
+                                                     "  \"commentary\": \"A short commentary or quote (string)\",\n"
+                                                     "  \"songs\": [\n"
+                                                     "    {\n"
+                                                     "      \"title\": \"Song Title (string)\",\n"
+                                                     "      \"artist\": \"Artist Name (string)\",\n"
+                                                     "      \"youtube_id\": \"Optional YouTube video id (string, can be null)\"\n"
+                                                     "    },\n"
+                                                     "    ...\n"
+                                                     "  ]\n"
+                                                     "}\n")}
+                                      {:role "user"
+                                       :content theme}]
+                           :temperature 0.7}))
+
 ;; (try
 ;;   ;; (System/setProperty "jdk.httpclient.HttpClient.log" "")
 ;;   (prompt→tracks "nostalgic")
 ;;   (catch Exception e
 ;;     (println e)))
+;; (create-playlist "a little sad")
