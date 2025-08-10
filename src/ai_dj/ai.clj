@@ -47,7 +47,7 @@
                             :content (str "You're the best DJ of the universe. "
                                           "You understand what songs users want to listen to and find the best playlist. "
                                           "The playlist should include at least 10 songs, "
-                                          "and they should all be available in youtube. "
+                                          "and they MUST be available in Youtube. "
                                           "Match the user's language."
                                           "Finally, you MUST respond in JSON, using the following schema: \n "
                                           "{\n"

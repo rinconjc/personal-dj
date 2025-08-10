@@ -15,6 +15,79 @@
            :yt-ids {}    ;; youtube track ids
            }))
 
+(defn current-track []
+  (when-let [current (some-> @app-state :queue first)]
+    (or (:youtube_id current)
+        (some-> @app-state :yt-ids (get (:id current))))))
+
+;; ---------- player ---------------
+(defonce yt-player (r/atom nil))
+
+(defn play-next [player]
+  (when-let [t @(r/track current-track)]
+    (js/console.log "track changed: " t)
+    (ocall player "loadVideoById" t)))
+
+(defn on-player-state-change [event]
+  (let [state (.-data event)]
+    ;; (js/console.log "Player state changed to:" state (= state js/YT.PlayerState.UNSTARTED))
+    (case state
+      -1 ;;js/YT.PlayerState.UNSTARTED
+      (do
+        (js/console.log "starting...")
+        (ocall (.-target event) "playVideo"))
+
+      0 ;; js/YT.PlayerState.ENDED (let [[x & xs] (list 1 2 3)] xs) (seq [])
+      (do
+        (js/console.log "▶️ Track ended, trigger next or commentary")
+        ;; (next-track!)
+        )
+
+      1 ;; js/YT.PlayerState.PLAYING
+      (do
+        (js/console.log "🎵 Track started")
+        ;; (let [{:keys [yt-ids queue]} @app-state
+        ;;       next (some #(when-not (or (:youtube_id %) (yt-ids (:id %))) %) queue)]
+        ;;   (when next
+        ;;     (send! {:type "track"
+        ;;             :id (:id next)
+        ;;             :query (str (:title next) " by " (:artist next))})))
+        )
+
+      (js/console.log "other state:" state))))
+
+(defn on-player-ready [event]
+  (js/console.log "Player ready")
+  ;; (r/track! play-next (.-target event))
+  )
+
+(defn on-yt-ready []
+  (js/console.log "on-yt-ready")
+  (reset! yt-player
+          (js/YT.Player.
+           "player"  ;; ID of the div
+           #js {:height "390"
+                :width "640"
+                ;; :videoId "none"  ;; initial video ID
+                :events #js {:onReady on-player-ready
+                             :onStateChange on-player-state-change}}))
+  ;; (r/track! play-next)
+  )
+
+(defn init-yt-api []
+  (set! js/onYouTubeIframeAPIReady on-yt-ready))
+
+(defn load-playlist! [songs]
+  (when-let [p @yt-player]
+    (let [playlist (->> songs
+                        (map :youtube_id)
+                        (filter some?)
+                        (filter not-empty)
+                        (clj->js))]
+      (js/console.log "playlist:" playlist)
+      (ocall p "loadPlaylist" playlist))))
+
+;; (clj->js (filter some? [1 nil 2]))
 ;; ------------------------------
 ;; WebSocket
 
@@ -26,7 +99,6 @@
   (let [ws (js/WebSocket. (or BACKEND_URL
                               (str (if (= js/location.protocol "https:") "wss:" "ws:")
                                    js/location.hostname
-                                   js/location.port
                                    "/ws")))]
     (set! (.-onmessage ws)
           (fn [e]
@@ -37,7 +109,8 @@
                              (swap! app-state assoc
                                     :queue songs
                                     :commentary commentary
-                                    :loading false))
+                                    :loading false)
+                             (load-playlist! songs))
                 "queue"     (let [queue (:queue msg)]
                               (swap! app-state assoc :queue queue))
                 "yt-id"      (swap! app-state update :yt-ids assoc (:id msg) (:track-id msg))
@@ -95,65 +168,6 @@
        [:h2 "Up Next:"]
        (for [{:keys [id title artist]} queue]
          ^{:key id} [:p "• " title " - " artist])])))
-
-(defn current-track []
-  (when-let [current (some-> @app-state :queue first)]
-    (or (:youtube_id current)
-        (some-> @app-state :yt-ids (get (:id current))))))
-
-;; ---------- player ---------------
-(defonce yt-player (r/atom nil))
-
-(defn play-next [player]
-  (when-let [t @(r/track current-track)]
-    (js/console.log "track changed: " t)
-    (ocall player "loadVideoById" t)))
-
-(defn on-player-state-change [event]
-  (let [state (.-data event)]
-    (js/console.log "Player state changed to:" state (= state js/YT.PlayerState.UNSTARTED))
-    (case state
-      -1 ;;js/YT.PlayerState.UNSTARTED
-      (do
-        (js/console.log "starting...")
-        (ocall (.-target event) "playVideo"))
-
-      0 ;; js/YT.PlayerState.ENDED (let [[x & xs] (list 1 2 3)] xs) (seq [])
-      (do
-        (js/console.log "▶️ Track ended, trigger next or commentary")
-        (next-track!))
-
-      1 ;; js/YT.PlayerState.PLAYING
-      (do
-        (js/console.log "🎵 Track started")
-        (let [{:keys [yt-ids queue]} @app-state
-              next (some #(when-not (or (:youtube_id %) (yt-ids (:id %))) %) queue)]
-          (when next
-            (send! {:type "track"
-                    :id (:id next)
-                    :query (str (:title next) " by " (:artist next))}))))
-
-      (js/console.log "other state:" state))))
-
-(defn on-player-ready [event]
-  (js/console.log "Player ready")
-  (r/track! play-next (.-target event)))
-
-(defn on-yt-ready []
-  (js/console.log "on-yt-ready")
-  (reset! yt-player
-          (js/YT.Player.
-           "player"  ;; ID of the div
-           #js {:height "390"
-                :width "640"
-                ;; :videoId "none"  ;; initial video ID
-                :events #js {:onReady on-player-ready
-                             :onStateChange on-player-state-change}}))
-  ;; (r/track! play-next)
-  )
-
-(defn init-yt-api []
-  (set! js/onYouTubeIframeAPIReady on-yt-ready))
 
 ;; ------------------------------
 ;; Main UI
