@@ -96,7 +96,7 @@
     (.send ws (js/JSON.stringify (clj->js msg)))))
 
 (defn connect! []
-  (let [ws (js/WebSocket. (or BACKEND_URL
+  (let [ws (js/WebSocket. (or (not-empty BACKEND_URL)
                               (str (if (= js/location.protocol "https:") "wss:" "ws:")
                                    js/location.hostname
                                    "/ws")))]
@@ -203,7 +203,8 @@
   (when (some? @yt-player)
     (.destroy @yt-player)
     (on-yt-ready))
-  (.addEventListener js/document "keydown" handle-keydown))
+  ;; (.addEventListener js/document "keydown" handle-keydown)
+  )
 
 (defn ^:export init []
   (js/console.log "init...")

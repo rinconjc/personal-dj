@@ -46,7 +46,7 @@
                 :messages [{:role "system"
                             :content (str "You're the best DJ of the universe. "
                                           "You understand what songs users want to listen to and find the best playlist. "
-                                          "The playlist should include at least 10 songs, "
+                                          "The playlist should include at least 20 songs, "
                                           "and they MUST be available in Youtube. "
                                           "Match the user's language."
                                           "Finally, you MUST respond in JSON, using the following schema: \n "
